@@ -18,56 +18,67 @@ async function main() {
     apiKey: apiKey,
     baseURL: baseURL,
   });
-
-  const response = await client.chat.completions.create({
-    model: "anthropic/claude-haiku-4.5",
-    messages: [{ role: "user", content: prompt }],
-    tools: [{
-      "type": "function",
-      "function": {
-        "name": "ReadFile",
-        "description": "Read and return the contents of a file",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "file_path": {
-              "type": "string",
-              "description": "The path to the file to read"
-            }
-          },
-          "required": ["file_path"]
-        }
+  const messageHistory = [{ role: "user", content: prompt }];
+  const availableTools = [{
+    "type": "function",
+    "function": {
+      "name": "ReadFile",
+      "description": "Read and return the contents of a file",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The path to the file to read"
+          }
+        },
+        "required": ["file_path"]
       }
-    }],
-  });
-
-  if (!response.choices || response.choices.length === 0) {
-    throw new Error("no choices in response");
-  }
-
-  // You can use print statements as follows for debugging, they'll be visible when running tests.
-  console.error("Logs from your program will appear here!");
-
-  const choice = response.choices[0]; // There is always one choice
-  const message = choice.message;
-
-  if (message.tool_calls && message.tool_calls.length > 0) {
-    /* Run first tool from calls */
-    const func = message.tool_calls[0];
-    /* Identify function */
-    const name = func.function.name;
-    
-    if (name == "ReadFile") {
-      // Is the read tool
-      // Get file path
-      const json = func.function.arguments;
-      const parsed = JSON.parse(json);
-
-      const data = readFile(parsed.file_path);  // Read file content
-      console.log(data);
     }
-  } else {
-    console.log(message.content); // Display message content for user
+  }];
+
+  while (true) {
+    const response = await client.chat.completions.create({
+      model: "anthropic/claude-haiku-4.5",
+      messages: messageHistory,
+      tools: availableTools,
+    });
+
+    if (!response.choices || response.choices.length === 0) {
+      throw new Error("no choices in response");
+    }
+    
+    const choice = response.choices.at(-1);
+    const message = choice.message;
+    messageHistory.push(message);
+
+    console.error("Logs from your program will appear here!");
+
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      message.tool_calls.forEach((tool) => {
+        /* Identify function */
+        const name = tool.function.name;
+        const id = tool.id;
+        const args = tool.function.arguments;
+
+        if (name == "ReadFile") {
+          // Is the read tool
+          // Get file path
+          const { file_path } = JSON.parse(args);
+
+          const data = readFile(file_path);  // Read file content
+          messageHistory.push({
+              "role": "tool",
+              "tool_call_id": id,
+              "content": data
+            }
+          );
+        }
+      });
+    } else {
+      console.log(message.content); // Display message content for user
+      break;
+    }
   }
 }
 
