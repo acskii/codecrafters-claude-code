@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -57,6 +58,23 @@ async function main() {
         }
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "Bash",
+      "description": "Execute a shell command",
+      "parameters": {
+        "type": "object",
+        "required": ["command"],
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The command to execute"
+          }
+        }
+      }
+    }
   }
   ];
 
@@ -106,6 +124,16 @@ async function main() {
               "content": msg
             }
           );
+        } else if (name == "Bash") {
+          const { command } = JSON.parse(args);
+
+          const output = bash(command);   // Run bash command
+          messageHistory.push({
+              "role": "tool",
+              "tool_call_id": id,
+              "content": output
+            }
+          );
         }
       });
     } else {
@@ -135,6 +163,15 @@ function writeFile(filePath, content) {
   } catch (error) {
     console.error(error.message);
     return "Couldn't create file"
+  }
+}
+
+function bash(command) {
+  try {
+    return execSync(command, { encoding: 'utf-8' });
+  } catch (error) {
+    console.error(error.message);
+    return "Couldn't run command";
   }
 }
 
