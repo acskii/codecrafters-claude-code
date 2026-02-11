@@ -19,6 +19,7 @@ async function main() {
     baseURL: baseURL,
   });
 
+  /* Get history of tools that can be advertised */
   const bundle = await bundleTools();
 
   const messageHistory = [{ role: "user", content: prompt }];

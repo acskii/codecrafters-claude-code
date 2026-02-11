@@ -10,6 +10,13 @@ const __dirname = path.dirname(__filename);
 const directory = path.join(__dirname, "tools");
 /* Change it here if you move the directory */
 
+/*
+    Each tool to qualify:
+        - Must have a 'tool' constant export that conforms with OpenRouter Specifications
+        - Must have a run(args) function that would receive arguments from tool specification after JSON parsing
+            -> Extract arguments needed for tool for implementation
+*/
+
 export default async function bundleTools() {
     const funcs = {};
     const tools = [];
