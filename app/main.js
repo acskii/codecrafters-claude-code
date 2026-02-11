@@ -39,8 +39,6 @@ async function main() {
     const message = choice.message;
     messageHistory.push(message);
 
-    console.error("Logs from your program will appear here!");
-
     if (message.tool_calls && message.tool_calls.length > 0) {
       for (const tool of message.tool_calls) {
         /* Identify function */
