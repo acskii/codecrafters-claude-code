@@ -1,7 +1,5 @@
 import OpenAI from "openai";
-import fs from "fs";
-import path from "path";
-import { execSync } from "child_process";
+import bundleTools from "./bundleTools.js";
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -20,63 +18,11 @@ async function main() {
     apiKey: apiKey,
     baseURL: baseURL,
   });
+
+  const bundle = await bundleTools();
+
   const messageHistory = [{ role: "user", content: prompt }];
-  const availableTools = [{
-    "type": "function",
-    "function": {
-      "name": "ReadFile",
-      "description": "Read and return the contents of a file",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "description": "The path to the file to read"
-          }
-        },
-        "required": ["file_path"]
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "WriteFile",
-      "description": "Write content to a file",
-      "parameters": {
-        "type": "object",
-        "required": ["file_path", "content"],
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "description": "The path of the file to write to"
-          },
-          "content": {
-            "type": "string",
-            "description": "The content to write to the file"
-          }
-        }
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
-      "name": "Bash",
-      "description": "Execute a shell command",
-      "parameters": {
-        "type": "object",
-        "required": ["command"],
-        "properties": {
-          "command": {
-            "type": "string",
-            "description": "The command to execute"
-          }
-        }
-      }
-    }
-  }
-  ];
+  const availableTools = bundle.availableTools;
 
   while (true) {
     const response = await client.chat.completions.create({
@@ -96,38 +42,17 @@ async function main() {
     console.error("Logs from your program will appear here!");
 
     if (message.tool_calls && message.tool_calls.length > 0) {
-      message.tool_calls.forEach((tool) => {
+      for (const tool of message.tool_calls) {
         /* Identify function */
         const name = tool.function.name;
         const id = tool.id;
         const args = tool.function.arguments;
 
-        if (name == "ReadFile") {
-          // Is the read tool
-          // Get file path
-          const { file_path } = JSON.parse(args);
+        if (bundle.runLookup[name]) {
+          // Run tool function
+          const output = bundle.runLookup[name](JSON.parse(args));
 
-          const data = readFile(file_path);  // Read file content
-          messageHistory.push({
-              "role": "tool",
-              "tool_call_id": id,
-              "content": data
-            }
-          );
-        } else if (name == "WriteFile") {
-          const { file_path, content } = JSON.parse(args);
-
-          const msg = writeFile(file_path, content);  // Write file content
-          messageHistory.push({
-              "role": "tool",
-              "tool_call_id": id,
-              "content": msg
-            }
-          );
-        } else if (name == "Bash") {
-          const { command } = JSON.parse(args);
-
-          const output = bash(command);   // Run bash command
+          // Push tool result into history
           messageHistory.push({
               "role": "tool",
               "tool_call_id": id,
@@ -135,43 +60,11 @@ async function main() {
             }
           );
         }
-      });
+      };
     } else {
       console.log(message.content); // Display message content for user
       break;
     }
-  }
-}
-
-function readFile(filepath) {
-  try {
-    const data = fs.readFileSync(filepath, 'utf-8');
-    return data;
-  } catch (error) {
-    console.error(error.message);
-  }
-}
-
-function writeFile(filePath, content) {
-  try {
-    const dirName = path.dirname(filePath);
-    if (!fs.existsSync(dirName)) {
-      fs.mkdirSync(dirName, { recursive: true });
-    }
-    fs.writeFileSync(filePath, content, 'utf-8');
-    return `Successfully wrote to file '${filePath}'`;
-  } catch (error) {
-    console.error(error.message);
-    return "Couldn't create file"
-  }
-}
-
-function bash(command) {
-  try {
-    return execSync(command, { encoding: 'utf-8' });
-  } catch (error) {
-    console.error(error.message);
-    return "Couldn't run command";
   }
 }
 
