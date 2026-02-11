@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import fs from "fs/promises";
+import fs from "fs";
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -51,28 +51,29 @@ async function main() {
   const choice = response.choices[0]; // There is always one choice
   const message = choice.message;
 
-  console.log(message.content); // Display message content for user
-  const tool_calls = message.tool_calls;
-  
-  /* Run first tool from calls */
-  const func = tool_calls[0];
-  /* Identify function */
-  const name = func.function.name;
-  
-  if (name == "ReadFile") {
-    // Is the read tool
-    // Get file path
-    const json = func.function.arguments;
-    const parsed = JSON.parse(json);
+  if (message.tool_calls && message.tool_calls.length > 0) {
+    /* Run first tool from calls */
+    const func = message.tool_calls[0];
+    /* Identify function */
+    const name = func.function.name;
+    
+    if (name == "ReadFile") {
+      // Is the read tool
+      // Get file path
+      const json = func.function.arguments;
+      const parsed = JSON.parse(json);
 
-    const data = await readFile(parsed.file_path);  // Read file content
-    console.log(data);
+      const data = readFile(parsed.file_path);  // Read file content
+      console.log(data);
+    }
+  } else {
+    console.log(message.content); // Display message content for user
   }
 }
 
-async function readFile(filepath) {
+function readFile(filepath) {
   try {
-    const data = await fs.readFile(filepath, 'utf-8')
+    const data = fs.readFileSync(filepath, 'utf-8');
     return data;
   } catch (error) {
     console.error(error.message);
