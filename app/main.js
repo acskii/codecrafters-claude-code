@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import fs from "fs";
+import path from "path";
 
 async function main() {
   const [, , flag, prompt] = process.argv;
@@ -35,7 +36,29 @@ async function main() {
         "required": ["file_path"]
       }
     }
-  }];
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "WriteFile",
+      "description": "Write content to a file",
+      "parameters": {
+        "type": "object",
+        "required": ["file_path", "content"],
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The path of the file to write to"
+          },
+          "content": {
+            "type": "string",
+            "description": "The content to write to the file"
+          }
+        }
+      }
+    }
+  }
+  ];
 
   while (true) {
     const response = await client.chat.completions.create({
@@ -73,6 +96,16 @@ async function main() {
               "content": data
             }
           );
+        } else if (name == "WriteFile") {
+          const { file_path, content } = JSON.parse(args);
+
+          const msg = writeFile(file_path, content);  // Write file content
+          messageHistory.push({
+              "role": "tool",
+              "tool_call_id": id,
+              "content": msg
+            }
+          );
         }
       });
     } else {
@@ -88,6 +121,20 @@ function readFile(filepath) {
     return data;
   } catch (error) {
     console.error(error.message);
+  }
+}
+
+function writeFile(filePath, content) {
+  try {
+    const dirName = path.dirname(filePath);
+    if (!fs.existsSync(dirName)) {
+      fs.mkdirSync(dirName, { recursive: true });
+    }
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return `Successfully wrote to file '${filePath}'`;
+  } catch (error) {
+    console.error(error.message);
+    return "Couldn't create file"
   }
 }
 
